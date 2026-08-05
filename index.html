@@ -242,9 +242,6 @@ const VIEWS={
         <div class="f"><label>Raça (opcional)</label><select id="lo-raca"><option value="">Selecione a raça</option></select></div>
         <div class="f"><label>Tipo</label><select id="lo-tipo"><option value="cru">Cru</option><option value="pasteurizado">Pasteurizado</option></select></div>
         <div class="f"><label>Volume (litros)</label><input id="lo-vol" type="number" step="0.1" placeholder="0"></div>
-        <div class="f"><label>Fazenda / propriedade</label><input id="lo-faz"></div>
-        <div class="f"><label>Produtor</label><input id="lo-prod"></div>
-        <div class="f"><label>Município</label><input id="lo-mun"></div>
         <div class="f"><label>Data e hora da coleta</label><input id="lo-col" type="datetime-local"></div>
         <div class="f"><label>Início do processo</label><input id="lo-proc" type="datetime-local"></div>
       </div>
@@ -433,8 +430,7 @@ async function salvarLote(){
   const rec={
     estabelecimento_id:ME.estabelecimento_id, codigo:'LT-'+new Date().toISOString().slice(0,7).replace('-','')+'-TEMP',
     especie:document.getElementById('lo-esp').value, raca:document.getElementById('lo-raca').value.trim()||null,
-    tipo_leite:document.getElementById('lo-tipo').value, fazenda:document.getElementById('lo-faz').value.trim()||null,
-    produtor:document.getElementById('lo-prod').value.trim()||null, municipio:document.getElementById('lo-mun').value.trim()||null,
+    tipo_leite:document.getElementById('lo-tipo').value,
     volume_litros:vol,
     coleta_em:document.getElementById('lo-col').value||null, processo_em:document.getElementById('lo-proc').value||null,
     chk_temperatura:document.getElementById('lo-temp').value?parseFloat(document.getElementById('lo-temp').value):null,
@@ -446,7 +442,7 @@ async function salvarLote(){
   const {error}=await sb.from('lat_lote_leite').insert(rec);
   if(error){toast('Erro: '+error.message);return;}
   toast('Lote registrado!');
-  ['lo-vol','lo-raca','lo-faz','lo-prod','lo-mun','lo-col','lo-proc','lo-temp'].forEach(i=>document.getElementById(i).value='');
+  ['lo-vol','lo-raca','lo-col','lo-proc','lo-temp'].forEach(i=>document.getElementById(i).value='');
   document.querySelectorAll('#view input[type=checkbox]').forEach(c=>c.checked=false);
   document.getElementById('lo-aviso').innerHTML='';
   listarLotes();
