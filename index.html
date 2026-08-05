@@ -253,8 +253,6 @@ const VIEWS={
       <div class="arti-h">Critérios artesanais <span class="b">SELO ARTE · Dec. 11.099</span></div>
       <label class="chk"><input type="checkbox" id="c-origem"> Origem determinada comprovada <span class="tag">art. 4º-IV</span></label>
       <label class="chk"><input type="checkbox" id="c-boas"> Boas práticas agropecuárias na origem <span class="tag">art. 5º-IV</span></label>
-      <label class="chk"><input type="checkbox" id="c-manual"> Técnicas manuais / domínio do processo <span class="tag">art. 5º-II/III</span></label>
-      <label class="chk"><input type="checkbox" id="c-aditivos"> Sem corantes/aromatizantes cosméticos <span class="tag">art. 5º-VI</span></label>
       <div id="lo-aviso" style="margin-top:12px;font-size:13px"></div>
       <div style="margin-top:14px"><button class="btn btn-sm" onclick="salvarLote()">Registrar lote</button></div>
     </div>
@@ -330,6 +328,9 @@ const VIEWS={
         <div class="f"><label>Rendimento (kg de queijo)</label><input id="pr-rend" type="number" step="0.1"></div>
         <div class="f"><label>Início da maturação</label><input id="pr-cura" type="date" value="${hoje()}"></div>
       </div>
+      <div class="arti-h">Critérios da fabricação <span class="b">SELO ARTE · Dec. 11.099</span></div>
+      <label class="chk"><input type="checkbox" id="pr-manual"> Técnicas manuais / domínio do processo <span class="tag">art. 5º-II/III</span></label>
+      <label class="chk"><input type="checkbox" id="pr-aditivos"> Sem corantes artificiais/aromatizantes cosméticos <span class="tag">art. 5º-VI</span></label>
       <div style="margin-top:12px"><button class="btn btn-sm" onclick="salvarProducao()">Iniciar produção e maturação</button></div>
     </div>`;
     if(!fichas||!fichas.length){document.getElementById('pr-lotes').innerHTML='<div class="empty">Cadastre uma ficha técnica primeiro.</div>';}
@@ -436,8 +437,7 @@ async function salvarLote(){
     chk_temperatura:document.getElementById('lo-temp').value?parseFloat(document.getElementById('lo-temp').value):null,
     chk_acidez:document.getElementById('c-acidez').checked, chk_aspecto:document.getElementById('c-aspecto').checked,
     chk_residuos:document.getElementById('c-residuos').checked, chk_origem_determinada:document.getElementById('c-origem').checked,
-    chk_boas_praticas:document.getElementById('c-boas').checked, chk_manual:document.getElementById('c-manual').checked,
-    chk_sem_aditivos:document.getElementById('c-aditivos').checked
+    chk_boas_praticas:document.getElementById('c-boas').checked
   };
   const {error}=await sb.from('lat_lote_leite').insert(rec);
   if(error){toast('Erro: '+error.message);return;}
@@ -508,7 +508,9 @@ async function salvarProducao(){
   // cria produção
   const {data:prod,error}=await sb.from('lat_producao').insert({
     estabelecimento_id:ME.estabelecimento_id, ficha_id:fichaId, litros_consumidos:litros,
-    rendimento_kg:rend, cura_inicio:curaIni, dias_cura:dias, status:'aguardando'
+    rendimento_kg:rend, cura_inicio:curaIni, dias_cura:dias, status:'aguardando',
+    chk_manual:document.getElementById('pr-manual').checked,
+    chk_sem_aditivos:document.getElementById('pr-aditivos').checked
   }).select('id').single();
   if(error){toast('Erro: '+error.message);return;}
   // distribui a baixa entre os lotes selecionados
