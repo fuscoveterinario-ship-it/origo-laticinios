@@ -277,14 +277,17 @@ const VIEWS={
       const tipo=document.getElementById('lo-tipo').value;
       const col=document.getElementById('lo-col').value, pr=document.getElementById('lo-proc').value;
       const av=document.getElementById('lo-aviso');
-      if(tipo==='cru'&&col&&pr){
+      if(tipo==='cru'){
+        if(!col||!pr){av.innerHTML='<span class="pill rest">Informe a coleta e o início do processo · obrigatórios para leite cru</span>';return;}
         const diff=(new Date(pr)-new Date(col))/3600000;
-        if(diff>2){av.innerHTML='<span class="pill rest">Restrito · '+diff.toFixed(1)+'h — só pasteurizado</span>';}
+        if(diff<0){av.innerHTML='<span class="pill rest">Horário inválido · o processo deve começar após a coleta</span>';}
+        else if(diff>2){av.innerHTML='<span class="pill rest">Esse leite passou de 2 horas. Ele deve ser pasteurizado.</span>';}
         else{av.innerHTML='<span class="pill lib">Dentro das 2h ('+diff.toFixed(1)+'h) · Liberado</span>';}
       }else if(tipo==='pasteurizado'){av.innerHTML='<span class="pill lib">Pasteurizado · Liberado</span>';}
       else av.innerHTML='';
     };
     ['lo-tipo','lo-col','lo-proc'].forEach(id=>document.getElementById(id).addEventListener('change',upd));
+    upd();
     listarLotes();
   },
 
@@ -294,7 +297,7 @@ const VIEWS={
     const el=document.getElementById('es-lista');
     if(!data||!data.length){el.innerHTML='<div class="empty">Nenhum lote em estoque ainda.</div>';return;}
     el.innerHTML=`<table><thead><tr><th>Código</th><th>Espécie/Raça</th><th>Origem</th><th>Saldo</th><th>Situação</th></tr></thead><tbody>`+
-      data.map(l=>`<tr><td class="mono">${esc(l.codigo)}</td><td style="text-transform:capitalize">${esc(l.especie||'')}${l.raca?' · '+esc(l.raca):''}</td><td>${esc(l.fazenda||'—')}</td><td>${Number(l.saldo_litros).toFixed(0)} L</td><td><span class="pill ${l.situacao}">${l.situacao==='restrito'?'Restrito · só pasteurizado':'Liberado'}</span></td></tr>`).join('')+`</tbody></table>`;
+      data.map(l=>`<tr><td class="mono">${esc(l.codigo)}</td><td style="text-transform:capitalize">${esc(l.especie||'')}${l.raca?' · '+esc(l.raca):''}</td><td>${esc(l.fazenda||'—')}</td><td>${Number(l.saldo_litros).toFixed(0)} L</td><td>${l.situacao==='requer_pasteurizacao'?'<span class="pill rest">Deve ser pasteurizado</span>':l.situacao==='restrito'?'<span class="pill rest">Restrito · só pasteurizado</span>':'<span class="pill lib">Liberado</span>'}</td></tr>`).join('')+`</tbody></table>`;
   },
 
   fichas: async ()=>{
@@ -429,12 +432,18 @@ const VIEWS={
 async function salvarLote(){
   const vol=parseFloat(document.getElementById('lo-vol').value);
   if(!vol||vol<=0){toast('Informe o volume em litros.');return;}
+  const tipo=document.getElementById('lo-tipo').value;
+  const coleta=document.getElementById('lo-col').value;
+  const processo=document.getElementById('lo-proc').value;
+  if(tipo==='cru'&&(!coleta||!processo)){toast('Para leite cru, informe a data e hora da coleta e do início do processo.');return;}
+  if(tipo==='cru'&&new Date(processo)<new Date(coleta)){toast('O início do processo não pode ser anterior à coleta.');return;}
+  if(tipo==='cru'&&(new Date(processo)-new Date(coleta))/3600000>2){toast('Esse leite passou de 2 horas. Ele deve ser pasteurizado.');return;}
   const rec={
     estabelecimento_id:ME.estabelecimento_id, codigo:'LT-'+new Date().toISOString().slice(0,7).replace('-','')+'-TEMP',
     especie:document.getElementById('lo-esp').value, raca:document.getElementById('lo-raca').value.trim()||null,
-    tipo_leite:document.getElementById('lo-tipo').value,
+    tipo_leite:tipo,
     volume_litros:vol,
-    coleta_em:document.getElementById('lo-col').value||null, processo_em:document.getElementById('lo-proc').value||null,
+    coleta_em:coleta||null, processo_em:processo||null,
     chk_temperatura:document.getElementById('lo-temp').value?parseFloat(document.getElementById('lo-temp').value):null,
     chk_acidez:document.getElementById('c-acidez').checked, chk_aspecto:document.getElementById('c-aspecto').checked,
     chk_residuos:document.getElementById('c-residuos').checked, chk_origem_determinada:document.getElementById('c-origem').checked,
@@ -453,7 +462,7 @@ async function listarLotes(){
   const el=document.getElementById('lo-lista');if(!el)return;
   if(!data||!data.length){el.innerHTML='<div class="empty">Nenhum lote ainda.</div>';return;}
   el.innerHTML=`<table><thead><tr><th>Código</th><th>Espécie/Raça</th><th>Volume</th><th>Situação</th></tr></thead><tbody>`+
-    data.map(l=>`<tr><td class="mono">${esc(l.codigo)}</td><td style="text-transform:capitalize">${esc(l.especie||'')}${l.raca?' · '+esc(l.raca):''}</td><td>${Number(l.volume_litros).toFixed(0)} L</td><td><span class="pill ${l.situacao}">${l.situacao==='restrito'?'Restrito':'Liberado'}</span></td></tr>`).join('')+`</tbody></table>`;
+    data.map(l=>`<tr><td class="mono">${esc(l.codigo)}</td><td style="text-transform:capitalize">${esc(l.especie||'')}${l.raca?' · '+esc(l.raca):''}</td><td>${Number(l.volume_litros).toFixed(0)} L</td><td>${l.situacao==='requer_pasteurizacao'?'<span class="pill rest">Deve ser pasteurizado</span>':l.situacao==='restrito'?'<span class="pill rest">Restrito</span>':'<span class="pill lib">Liberado</span>'}</td></tr>`).join('')+`</tbody></table>`;
 }
 
 async function salvarFicha(){
@@ -493,12 +502,14 @@ function montarLotesProd(){
     (lotes.length?lotes.map(l=>{
       const tipoLote=l.tipo_leite||'cru';
       const tipoIncompativel=(tipo==='cru'&&tipoLote!=='cru');
-      const loteRestrito=(tipo==='cru'&&l.situacao==='restrito');
-      const bloq=tipoIncompativel||loteRestrito;
+      const loteNaoLiberado=(tipo==='cru'&&l.situacao!=='liberado');
+      const bloq=tipoIncompativel||loteNaoLiberado;
       const situacao=tipoIncompativel
         ?'<span class="pill rest" style="margin-left:auto">Incompatível · exige leite cru</span>'
-        :loteRestrito
-          ?'<span class="pill rest" style="margin-left:auto">Restrito · bloqueado p/ cru</span>'
+        :l.situacao==='requer_pasteurizacao'
+          ?'<span class="pill rest" style="margin-left:auto">Deve ser pasteurizado</span>'
+          :loteNaoLiberado
+            ?'<span class="pill rest" style="margin-left:auto">Não liberado para queijo de leite cru</span>'
           :'<span class="pill '+l.situacao+'" style="margin-left:auto">'+(l.situacao==='restrito'?'Restrito':'Liberado')+'</span>';
       return `<label class="chk" style="${bloq?'opacity:.5':''}">
         <input type="checkbox" class="pr-lote" value="${l.id}" data-saldo="${l.saldo_litros}" data-tipo-leite="${esc(tipoLote)}" data-situacao="${esc(l.situacao||'')}" ${bloq?'disabled':''}>
