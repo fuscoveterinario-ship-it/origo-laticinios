@@ -240,13 +240,13 @@ const VIEWS={
       <div class="grid3">
         <div class="f"><label>Espécie</label><select id="lo-esp"><option>bovino</option><option>bubalino</option><option>caprino</option><option>ovino</option></select></div>
         <div class="f"><label>Raça (opcional)</label><select id="lo-raca"><option value="">Selecione a raça</option></select></div>
-        <div class="f"><label>Tipo</label><select id="lo-tipo"><option value="cru">Cru</option><option value="pasteurizado">Pasteurizado</option></select></div>
+        <div class="f"><label>Tipo</label><select id="lo-tipo"><option value="cru">Cru</option><option value="pasteurizado">Para pasteurização</option></select></div>
         <div class="f"><label>Volume (litros)</label><input id="lo-vol" type="number" step="0.1" placeholder="0"></div>
         <div class="f"><label>Data e hora da coleta</label><input id="lo-col" type="datetime-local"></div>
         <div class="f"><label>Início do processo</label><input id="lo-proc" type="datetime-local"></div>
       </div>
       <div class="arti-h">Checklist sanitário</div>
-      <label class="chk"><input type="checkbox" id="c-temp-ck"> Temperatura conforme <input id="lo-temp" type="number" step="0.1" placeholder="°C" style="width:80px;margin-left:auto;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 8px;color:var(--txt)"></label>
+      <label class="chk hidden" id="lo-temp-wrap"><input type="checkbox" id="c-temp-ck"> Leite chegou resfriado <input id="lo-temp" type="number" step="0.1" placeholder="°C" style="width:80px;margin-left:auto;background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:5px 8px;color:var(--txt)"></label>
       <label class="chk"><input type="checkbox" id="c-acidez"> Teste de acidez / alizarol conforme</label>
       <label class="chk"><input type="checkbox" id="c-aspecto"> Aspecto, cor e odor característicos</label>
       <label class="chk"><input type="checkbox" id="c-residuos"> Ausência de resíduos / mastite (CMT)</label>
@@ -277,16 +277,25 @@ const VIEWS={
       const tipo=document.getElementById('lo-tipo').value;
       const col=document.getElementById('lo-col').value, pr=document.getElementById('lo-proc').value;
       const av=document.getElementById('lo-aviso');
+      const tempWrap=document.getElementById('lo-temp-wrap');
+      const tempCk=document.getElementById('c-temp-ck');
+      const temp=document.getElementById('lo-temp');
+      tempWrap.classList.toggle('hidden',tipo!=='pasteurizado');
       if(tipo==='cru'){
+        tempCk.checked=false;
+        temp.value='';
         if(!col||!pr){av.innerHTML='<span class="pill rest">Informe a coleta e o início do processo · obrigatórios para leite cru</span>';return;}
         const diff=(new Date(pr)-new Date(col))/3600000;
         if(diff<0){av.innerHTML='<span class="pill rest">Horário inválido · o processo deve começar após a coleta</span>';}
         else if(diff>2){av.innerHTML='<span class="pill rest">Esse leite passou de 2 horas. Ele deve ser pasteurizado.</span>';}
-        else{av.innerHTML='<span class="pill lib">Dentro das 2h ('+diff.toFixed(1)+'h) · Liberado</span>';}
-      }else if(tipo==='pasteurizado'){av.innerHTML='<span class="pill lib">Pasteurizado · Liberado</span>';}
+        else{av.innerHTML='<span class="pill lib">Leite cru em temperatura ambiente · dentro das 2h ('+diff.toFixed(1)+'h)</span>';}
+      }else if(tipo==='pasteurizado'){
+        if(!tempCk.checked||!temp.value){av.innerHTML='<span class="pill rest">Para pasteurização, confirme que o leite chegou resfriado e informe a temperatura</span>';}
+        else{av.innerHTML='<span class="pill lib">Leite resfriado · destinado à pasteurização</span>';}
+      }
       else av.innerHTML='';
     };
-    ['lo-tipo','lo-col','lo-proc'].forEach(id=>document.getElementById(id).addEventListener('change',upd));
+    ['lo-tipo','lo-col','lo-proc','c-temp-ck','lo-temp'].forEach(id=>document.getElementById(id).addEventListener('change',upd));
     upd();
     listarLotes();
   },
@@ -435,16 +444,20 @@ async function salvarLote(){
   const tipo=document.getElementById('lo-tipo').value;
   const coleta=document.getElementById('lo-col').value;
   const processo=document.getElementById('lo-proc').value;
+  const tempConforme=tipo==='pasteurizado'&&document.getElementById('c-temp-ck').checked;
+  const tempInformada=document.getElementById('lo-temp').value;
   if(tipo==='cru'&&(!coleta||!processo)){toast('Para leite cru, informe a data e hora da coleta e do início do processo.');return;}
   if(tipo==='cru'&&new Date(processo)<new Date(coleta)){toast('O início do processo não pode ser anterior à coleta.');return;}
   if(tipo==='cru'&&(new Date(processo)-new Date(coleta))/3600000>2){toast('Esse leite passou de 2 horas. Ele deve ser pasteurizado.');return;}
+  if(tipo==='pasteurizado'&&(!tempConforme||!tempInformada)){toast('Para leite destinado à pasteurização, confirme que chegou resfriado e informe a temperatura.');return;}
   const rec={
     estabelecimento_id:ME.estabelecimento_id, codigo:'LT-'+new Date().toISOString().slice(0,7).replace('-','')+'-TEMP',
     especie:document.getElementById('lo-esp').value, raca:document.getElementById('lo-raca').value.trim()||null,
     tipo_leite:tipo,
     volume_litros:vol,
     coleta_em:coleta||null, processo_em:processo||null,
-    chk_temperatura:document.getElementById('lo-temp').value?parseFloat(document.getElementById('lo-temp').value):null,
+    chk_temperatura:tipo==='pasteurizado'?parseFloat(tempInformada):null,
+    chk_temperatura_conforme:tempConforme,
     chk_acidez:document.getElementById('c-acidez').checked, chk_aspecto:document.getElementById('c-aspecto').checked,
     chk_residuos:document.getElementById('c-residuos').checked, chk_origem_determinada:document.getElementById('c-origem').checked,
     chk_boas_praticas:document.getElementById('c-boas').checked
@@ -501,6 +514,7 @@ function montarLotesProd(){
   box.innerHTML='<div class="arti-h">Selecionar lotes de leite</div>'+avisoCru+
     (lotes.length?lotes.map(l=>{
       const tipoLote=l.tipo_leite||'cru';
+      const tipoLoteLabel=tipoLote==='pasteurizado'?'para pasteurização':tipoLote;
       const tipoIncompativel=(tipo==='cru'&&tipoLote!=='cru');
       const loteNaoLiberado=(tipo==='cru'&&l.situacao!=='liberado');
       const bloq=tipoIncompativel||loteNaoLiberado;
@@ -513,7 +527,7 @@ function montarLotesProd(){
           :'<span class="pill '+l.situacao+'" style="margin-left:auto">'+(l.situacao==='restrito'?'Restrito':'Liberado')+'</span>';
       return `<label class="chk" style="${bloq?'opacity:.5':''}">
         <input type="checkbox" class="pr-lote" value="${l.id}" data-saldo="${l.saldo_litros}" data-tipo-leite="${esc(tipoLote)}" data-situacao="${esc(l.situacao||'')}" ${bloq?'disabled':''}>
-        ${esc(l.codigo)} · ${esc(l.especie||'')}${l.raca?' '+esc(l.raca):''} · leite ${esc(tipoLote)} · ${Number(l.saldo_litros).toFixed(0)} L
+        ${esc(l.codigo)} · ${esc(l.especie||'')}${l.raca?' '+esc(l.raca):''} · leite ${esc(tipoLoteLabel)} · ${Number(l.saldo_litros).toFixed(0)} L
         ${situacao}
       </label>`;
     }).join(''):'<div class="empty">Sem lotes com saldo.</div>');
