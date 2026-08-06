@@ -331,6 +331,7 @@ const VIEWS={
       <div class="arti-h">Critérios da fabricação <span class="b">SELO ARTE · Dec. 11.099</span></div>
       <label class="chk"><input type="checkbox" id="pr-manual"> Técnicas manuais / domínio do processo <span class="tag">art. 5º-II/III</span></label>
       <label class="chk"><input type="checkbox" id="pr-aditivos"> Sem corantes artificiais/aromatizantes cosméticos <span class="tag">art. 5º-VI</span></label>
+      <label class="chk hidden" id="pr-livre-wrap"><input type="checkbox" id="pr-livre"> Propriedade livre de brucelose e tuberculose <span class="tag">obrigatório para leite cru</span></label>
       <div style="margin-top:12px"><button class="btn btn-sm" onclick="salvarProducao()">Iniciar produção e maturação</button></div>
     </div>`;
     if(!fichas||!fichas.length){document.getElementById('pr-lotes').innerHTML='<div class="empty">Cadastre uma ficha técnica primeiro.</div>';}
@@ -482,26 +483,44 @@ function montarLotesProd(){
   const dias=opt?opt.dataset.dias:0;
   const box=document.getElementById('pr-lotes');
   const lotes=window._lotes||[];
-  box.innerHTML='<div class="arti-h">Selecionar lotes de leite</div>'+
+  const livreWrap=document.getElementById('pr-livre-wrap');
+  const livre=document.getElementById('pr-livre');
+  livre.checked=false;
+  livreWrap.classList.toggle('hidden',tipo!=='cru');
+  const temLoteCruLiberado=lotes.some(l=>(l.tipo_leite||'cru')==='cru'&&l.situacao==='liberado');
+  const avisoCru=tipo==='cru'&&!temLoteCruLiberado?'<div class="empty" style="color:var(--amber2)">Nenhum lote de leite cru liberado disponível. Registre primeiro uma entrada de leite cru em Lotes de Leite.</div>':'';
+  box.innerHTML='<div class="arti-h">Selecionar lotes de leite</div>'+avisoCru+
     (lotes.length?lotes.map(l=>{
-      const bloq=(tipo==='cru'&&l.situacao==='restrito');
+      const tipoLote=l.tipo_leite||'cru';
+      const tipoIncompativel=(tipo==='cru'&&tipoLote!=='cru');
+      const loteRestrito=(tipo==='cru'&&l.situacao==='restrito');
+      const bloq=tipoIncompativel||loteRestrito;
+      const situacao=tipoIncompativel
+        ?'<span class="pill rest" style="margin-left:auto">Incompatível · exige leite cru</span>'
+        :loteRestrito
+          ?'<span class="pill rest" style="margin-left:auto">Restrito · bloqueado p/ cru</span>'
+          :'<span class="pill '+l.situacao+'" style="margin-left:auto">'+(l.situacao==='restrito'?'Restrito':'Liberado')+'</span>';
       return `<label class="chk" style="${bloq?'opacity:.5':''}">
-        <input type="checkbox" class="pr-lote" value="${l.id}" data-saldo="${l.saldo_litros}" ${bloq?'disabled':''}>
-        ${esc(l.codigo)} · ${esc(l.especie||'')}${l.raca?' '+esc(l.raca):''} · ${Number(l.saldo_litros).toFixed(0)} L
-        ${bloq?'<span class="pill rest" style="margin-left:auto">Restrito · bloqueado p/ cru</span>':'<span class="pill '+l.situacao+'" style="margin-left:auto">'+(l.situacao==='restrito'?'Restrito':'Liberado')+'</span>'}
+        <input type="checkbox" class="pr-lote" value="${l.id}" data-saldo="${l.saldo_litros}" data-tipo-leite="${esc(tipoLote)}" data-situacao="${esc(l.situacao||'')}" ${bloq?'disabled':''}>
+        ${esc(l.codigo)} · ${esc(l.especie||'')}${l.raca?' '+esc(l.raca):''} · leite ${esc(tipoLote)} · ${Number(l.saldo_litros).toFixed(0)} L
+        ${situacao}
       </label>`;
     }).join(''):'<div class="empty">Sem lotes com saldo.</div>');
 }
 async function salvarProducao(){
   const fichaId=document.getElementById('pr-ficha').value;
   if(!fichaId){toast('Escolha uma ficha técnica.');return;}
-  const lotesSel=[...document.querySelectorAll('.pr-lote:checked')].map(c=>({id:c.value,saldo:parseFloat(c.dataset.saldo)}));
+  const fichaSel=document.getElementById('pr-ficha');
+  const opt=fichaSel.options[fichaSel.selectedIndex];
+  const tipo=opt?opt.dataset.tipo:'';
+  const lotesSel=[...document.querySelectorAll('.pr-lote:checked')].map(c=>({id:c.value,saldo:parseFloat(c.dataset.saldo),tipoLeite:c.dataset.tipoLeite,situacao:c.dataset.situacao}));
   if(!lotesSel.length){toast('Selecione ao menos um lote.');return;}
+  if(tipo==='cru'&&lotesSel.some(l=>l.tipoLeite!=='cru'||l.situacao!=='liberado')){toast('Queijo de leite cru exige um lote de leite cru liberado.');return;}
+  if(tipo==='cru'&&!document.getElementById('pr-livre').checked){toast('Confirme que a propriedade é livre de brucelose e tuberculose.');return;}
   const litros=parseFloat(document.getElementById('pr-litros').value);
   if(!litros||litros<=0){toast('Informe os litros consumidos.');return;}
   const totalSaldo=lotesSel.reduce((s,l)=>s+l.saldo,0);
   if(litros>totalSaldo){toast('Litros acima do saldo disponível.');return;}
-  const opt=document.getElementById('pr-ficha').options[document.getElementById('pr-ficha').selectedIndex];
   const dias=parseInt(opt.dataset.dias)||0;
   const rend=parseFloat(document.getElementById('pr-rend').value)||null;
   const curaIni=document.getElementById('pr-cura').value||hoje();
@@ -510,7 +529,8 @@ async function salvarProducao(){
     estabelecimento_id:ME.estabelecimento_id, ficha_id:fichaId, litros_consumidos:litros,
     rendimento_kg:rend, cura_inicio:curaIni, dias_cura:dias, status:'aguardando',
     chk_manual:document.getElementById('pr-manual').checked,
-    chk_sem_aditivos:document.getElementById('pr-aditivos').checked
+    chk_sem_aditivos:document.getElementById('pr-aditivos').checked,
+    chk_propriedade_livre_brucelose_tuberculose:tipo==='cru'&&document.getElementById('pr-livre').checked
   }).select('id').single();
   if(error){toast('Erro: '+error.message);return;}
   // distribui a baixa entre os lotes selecionados
