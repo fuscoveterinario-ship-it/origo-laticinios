@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src https://vmzmthtsxiwwjtpupclv.supabase.co; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:">
+<title>Verificação de Chancela · Órigo Laticínios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#160f09;--bg2:#20160d;--card:#291c11;--card2:#332415;
+    --amber:#d98a2b;--amber2:#e8a13c;--butter:#f0c15a;--line:#4a3826;
+    --txt:#f5ead6;--dim:#c2ac8c;--green:#8aa958;--red:#cf7650;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;background:radial-gradient(circle at 50% -10%,#352311 0,#1a120b 44%,#100b07 100%);color:var(--txt);font-family:'Inter',sans-serif;line-height:1.5;padding:24px 16px}
+  main{width:min(100%,560px);margin:0 auto}
+  .card{overflow:hidden;background:linear-gradient(180deg,rgba(41,28,17,.97),rgba(28,19,12,.98));border:1px solid var(--line);border-radius:24px;box-shadow:0 24px 70px rgba(0,0,0,.4)}
+  .hero{text-align:center;padding:34px 28px 26px;border-bottom:1px solid var(--line);position:relative}
+  .hero:before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0,rgba(232,161,60,.12),transparent 60%);pointer-events:none}
+  .seal{position:relative;width:82px;height:82px;border-radius:50%;margin:0 auto 14px;display:flex;align-items:center;justify-content:center;border:2px solid var(--amber);background:radial-gradient(circle at 38% 30%,#efb44d,#bd711d 68%,#653810);box-shadow:0 8px 28px rgba(217,138,43,.18)}
+  .seal span{font:800 29px 'Playfair Display',serif;color:#281608}
+  .brand{position:relative;font:800 29px 'Playfair Display',serif;color:var(--butter)}
+  .brand-sub{position:relative;margin-top:2px;color:var(--dim);font-size:10px;letter-spacing:.24em;text-transform:uppercase}
+  .eyebrow{color:var(--amber2);font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px}
+  .content{padding:28px}
+  .loading,.message{text-align:center;color:var(--dim);padding:34px 12px}
+  .spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--amber2);margin:0 auto 14px;animation:girar .8s linear infinite}
+  @keyframes girar{to{transform:rotate(360deg)}}
+  .message strong{display:block;color:var(--txt);font:700 20px 'Playfair Display',serif;margin-bottom:8px}
+  .message.error strong{color:#efaa86}
+  .estab{text-align:center;margin-bottom:20px}
+  .estab h1{font:800 clamp(25px,6vw,34px) 'Playfair Display',serif;color:var(--butter);line-height:1.15}
+  .city{color:var(--dim);font-size:14px;margin-top:6px}
+  .status{display:inline-flex;align-items:center;gap:8px;margin-top:14px;padding:7px 13px;border:1px solid rgba(138,169,88,.48);border-radius:999px;background:rgba(138,169,88,.14);color:#b9d680;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+  .status i{width:8px;height:8px;border-radius:50%;background:#94bb53;box-shadow:0 0 0 4px rgba(148,187,83,.14)}
+  .section{margin-top:22px}
+  .section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;color:var(--amber2);font:700 13px 'Playfair Display',serif;letter-spacing:.08em;text-transform:uppercase}
+  .count{font-family:'Inter',sans-serif;font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:999px;padding:3px 8px}
+  .products{display:grid;gap:9px}
+  .product{background:rgba(51,36,21,.72);border:1px solid var(--line);border-radius:13px;padding:14px 15px}
+  .product h2{font:700 17px 'Playfair Display',serif;color:var(--txt);margin-bottom:8px}
+  .meta{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .meta div{min-width:0;background:rgba(22,15,9,.48);border-radius:9px;padding:8px 9px}
+  .meta span{display:block;color:var(--dim);font-size:9px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:2px}
+  .meta b{display:block;color:var(--butter);font-size:12px;word-break:break-word}
+  .verify{margin-top:20px;padding:14px;border:1px solid rgba(138,169,88,.35);border-radius:12px;background:rgba(138,169,88,.08);text-align:center}
+  .verify b{display:block;color:#b9d680;font-size:13px}
+  .verify span{color:var(--dim);font-size:11px}
+  .code{text-align:center;margin-top:16px;color:var(--dim);font-size:11px}
+  .code b{display:block;color:var(--butter);font-family:monospace;font-size:14px;margin-top:3px}
+  footer{text-align:center;padding:20px 24px 24px;border-top:1px solid var(--line);color:var(--dim);font-size:10px;letter-spacing:.04em}
+  footer b{color:var(--amber2)}
+  @media(max-width:480px){body{padding:10px}.card{border-radius:18px}.hero{padding:27px 20px 22px}.content{padding:22px 17px}.meta{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <section class="card" aria-live="polite">
+    <header class="hero">
+      <div class="seal" aria-hidden="true"><span>Ó</span></div>
+      <div class="brand">Órigo</div>
+      <div class="brand-sub">Laticínios · Rastreabilidade</div>
+    </header>
+    <div class="content" id="resultado">
+      <div class="loading"><div class="spinner"></div>Verificando a chancela…</div>
+    </div>
+    <footer>Rastreabilidade e certificação de origem<br>Emitido pela <b>BIOTEC Consultoria</b></footer>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.112.1"></script>
+<script>
+const SB_URL='https://vmzmthtsxiwwjtpupclv.supabase.co';
+const SB_ANON='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZtem10aHRzeGl3d2p0cHVwY2x2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzNTI3NDIsImV4cCI6MjEwMDkyODc0Mn0.QrM7tjRONWwuFwJ3yIOlPor45-bQGuM4OTxMwVpuNoA';
+const banco=supabase.createClient(SB_URL,SB_ANON,{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});
+const resultado=document.getElementById('resultado');
+
+function esc(valor){return String(valor??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function mensagem(titulo,texto,erro=false){
+  resultado.innerHTML=`<div class="message${erro?' error':''}"><strong>${esc(titulo)}</strong>${esc(texto)}</div>`;
+}
+function valorPublico(valor){return valor&&String(valor).trim()?String(valor).trim():'Não informado';}
+
+async function verificar(){
+  const codigo=(new URLSearchParams(location.search).get('c')||'').trim().toUpperCase();
+  if(!codigo){mensagem('Código não informado','Leia novamente o QR Code da chancela.',true);return;}
+  if(!/^[A-Z0-9-]{4,40}$/.test(codigo)){mensagem('Código inválido','A chancela informada não possui um formato válido.',true);return;}
+
+  const {data,error}=await banco
+    .from('lat_chancela_publica')
+    .select('codigo,nome,cidade,status,produtos')
+    .eq('codigo',codigo)
+    .eq('status','ativa')
+    .maybeSingle();
+
+  if(error){mensagem('Não foi possível verificar','Tente novamente em alguns instantes.',true);return;}
+  if(!data){mensagem('Chancela não disponível','Ela não foi encontrada, ainda não está ativa ou foi suspensa.',true);return;}
+
+  const produtos=Array.isArray(data.produtos)?data.produtos:[];
+  const produtosHtml=produtos.length?produtos.map(p=>`
+    <article class="product">
+      <h2>${esc(p.produto||'Produto')}</h2>
+      <div class="meta">
+        <div><span>Registro do produto</span><b>${esc(valorPublico(p.numero_registro_produto))}</b></div>
+        <div><span>Número Selo Arte</span><b>${esc(valorPublico(p.numero_selo_arte))}</b></div>
+      </div>
+    </article>`).join(''):'<div class="message">Nenhum produto ativo vinculado à chancela.</div>';
+  const verificadoEm=new Intl.DateTimeFormat('pt-BR',{dateStyle:'short',timeStyle:'medium',timeZone:'America/Sao_Paulo'}).format(new Date());
+
+  resultado.innerHTML=`
+    <div class="eyebrow">Verificação de chancela</div>
+    <div class="estab">
+      <h1>${esc(data.nome)}</h1>
+      <div class="city">${esc(data.cidade||'Município não informado')}</div>
+      <div class="status"><i></i>Chancela ativa</div>
+    </div>
+    <section class="section">
+      <div class="section-title">Produtos cadastrados <span class="count">${produtos.length} ${produtos.length===1?'produto':'produtos'}</span></div>
+      <div class="products">${produtosHtml}</div>
+    </section>
+    <div class="verify"><b>✓ Verificado em tempo real</b><span>${esc(verificadoEm)}</span></div>
+    <div class="code">Código da chancela<b>${esc(data.codigo)}</b></div>`;
+}
+
+verificar();
+</script>
+</body>
+</html>
