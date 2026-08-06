@@ -319,14 +319,17 @@ const VIEWS={
   },
 
   fichas: async ()=>{
+    window._fichaEditandoId=null;
     V().innerHTML=`<h2 class="sec">Fichas Técnicas (produtos)</h2>
-    <div class="panel"><h3>Nova ficha</h3>
-      <div class="grid3">
+    <div class="panel"><h3 id="fi-titulo">Nova ficha</h3>
+      <div class="grid2">
         <div class="f full"><label>Produto</label><input id="fi-nome" placeholder="Ex: Queijo Colonial"></div>
+        <div class="f"><label>Número de registro do produto</label><input id="fi-registro" placeholder="Ex: 0142/001"></div>
+        <div class="f"><label>Número do Selo Arte</label><input id="fi-selo" placeholder="Ex: PR 000123"></div>
         <div class="f"><label>Tipo de leite exigido</label><select id="fi-tipo"><option value="cru">Leite cru</option><option value="pasteurizado">Pasteurizado</option><option value="qualquer">Qualquer</option></select></div>
         <div class="f"><label>Dias de cura</label><input id="fi-dias" type="number" placeholder="0"></div>
       </div>
-      <div style="margin-top:12px"><button class="btn btn-sm" onclick="salvarFicha()">Salvar ficha</button></div>
+      <div class="row-act" style="margin-top:12px"><button class="btn btn-sm" id="fi-salvar" onclick="salvarFicha()">Salvar ficha</button><button class="btn-sec btn-sm hidden" id="fi-cancelar" onclick="limparFormularioFicha()">Cancelar edição</button></div>
     </div>
     <div class="panel"><h3>Fichas cadastradas</h3><div id="fi-lista"><div class="empty">Carregando…</div></div></div>`;
     listarFichas();
@@ -385,7 +388,7 @@ const VIEWS={
         <p style="color:var(--txt-dim);font-size:13px;margin-bottom:12px">Aqui ficam os relatórios de auditoria do estabelecimento. O PDF assinado mantém o retrato dos dados do mês.</p>
         <div id="ea-lista"><div class="empty">Carregando…</div></div>
       </div>`;
-    const {data,error}=await sb.from('lat_auditoria_mensal').select('*').eq('estabelecimento_id',ME.estabelecimento_id).order('competencia',{ascending:false});
+    const {data,error}=await sb.from('lat_auditoria_mensal').select('*').eq('estabelecimento_id',ME.estabelecimento_id).order('competencia',{ascending:false}).order('versao',{ascending:false});
     const el=document.getElementById('ea-lista');
     if(error){el.innerHTML=`<div class="empty">Não foi possível carregar: ${esc(error.message)}</div>`;return;}
     renderTabelaAuditorias(el,data||[],false);
@@ -511,8 +514,8 @@ async function coletarDadosAuditoria(estabId,mes){
     consumos=rc.data||[];
   }
   const fichas=(rf.data||[]).map(f=>{
-    const preenchimento=pctPreenchido([f.produto,f.tipo_leite_exigido,f.dias_cura]);
-    return {id:f.id,produto:f.produto,tipo_leite_exigido:f.tipo_leite_exigido,dias_cura:f.dias_cura,ativo:f.ativo,criado_em:f.criado_em,preenchimento};
+    const preenchimento=pctPreenchido([f.produto,f.numero_registro_produto,f.numero_selo_arte,f.tipo_leite_exigido,f.dias_cura]);
+    return {id:f.id,produto:f.produto,numero_registro_produto:f.numero_registro_produto,numero_selo_arte:f.numero_selo_arte,tipo_leite_exigido:f.tipo_leite_exigido,dias_cura:f.dias_cura,ativo:f.ativo,criado_em:f.criado_em,preenchimento};
   });
   const lotes=(rl.data||[]).map(l=>{
     const campos=[l.codigo,l.data_entrada,l.especie,l.tipo_leite,l.volume_litros,l.saldo_litros,l.chk_acidez,l.chk_aspecto,l.chk_residuos,l.chk_origem_determinada,l.chk_boas_praticas,l.situacao];
@@ -564,24 +567,29 @@ async function gerarAuditoriaMensal(){
   btn.disabled=true;msg.className='msg';msg.textContent='Coletando os dados e preparando o documento…';
   try{
     const dados=await coletarDadosAuditoria(estabId,mes);
+    const {data:ultima,error:erroUltima}=await sb.from('lat_auditoria_mensal').select('*').eq('estabelecimento_id',estabId).eq('competencia',dados.competencia).order('versao',{ascending:false}).limit(1).maybeSingle();
+    if(erroUltima)throw erroUltima;
+    const versao=ultima&&ultima.status==='assinado'?Number(ultima.versao||1)+1:Number(ultima?.versao||1);
     const payload={
       estabelecimento_id:estabId,competencia:dados.competencia,periodo_inicio:dados.periodo.inicio,periodo_fim:dados.periodo.fim,
-      dados,resumo:dados.resumo,gerado_por:ME.id,gerado_por_nome:ME.nome,status:'pendente_assinatura'
+      dados,resumo:dados.resumo,gerado_por:ME.id,gerado_por_nome:ME.nome,status:'pendente_assinatura',versao
     };
-    const {data,error}=await sb.from('lat_auditoria_mensal').upsert(payload,{onConflict:'estabelecimento_id,competencia'}).select('*').single();
+    const resultado=ultima&&ultima.status!=='assinado'
+      ?await sb.from('lat_auditoria_mensal').update(payload).eq('id',ultima.id).select('*').single()
+      :await sb.from('lat_auditoria_mensal').insert(payload).select('*').single();
+    const {data,error}=resultado;
     if(error)throw error;
-    msg.className='msg ok';msg.textContent='Documento gerado. Confira o PDF e assine para concluir a auditoria.';
+    msg.className='msg ok';msg.textContent=versao>1?`Versão ${versao} criada sem alterar o relatório assinado anteriormente. Confira e assine a revisão.`:'Documento gerado. Confira o PDF e assine para concluir a auditoria.';
     await listarAuditoriasAdmin();
     mostrarAssinaturaAuditoria(data);
   }catch(e){
-    msg.className='msg err';
-    msg.textContent=String(e.message||e).includes('assinada não pode')?'Este mês já possui uma auditoria assinada e não pode ser substituída.':'Erro: '+(e.message||e);
+    msg.className='msg err';msg.textContent='Erro: '+(e.message||e);
   }finally{btn.disabled=false;}
 }
 
 async function listarAuditoriasAdmin(){
   const el=document.getElementById('au-lista');if(!el)return;
-  const {data,error}=await sb.from('lat_auditoria_mensal').select('*').order('competencia',{ascending:false}).order('gerado_em',{ascending:false});
+  const {data,error}=await sb.from('lat_auditoria_mensal').select('*').order('competencia',{ascending:false}).order('versao',{ascending:false}).order('gerado_em',{ascending:false});
   if(error){el.innerHTML=`<div class="empty">Não foi possível carregar: ${esc(error.message)}</div>`;return;}
   renderTabelaAuditorias(el,data||[],ME.perfil==='administrador');
 }
@@ -592,7 +600,7 @@ function renderTabelaAuditorias(el,data,podeAssinar){
     data.map(a=>{
       const d=a.dados||{},r=a.resumo||{},e=d.estabelecimento||{};
       const status=a.status==='assinado'?'Assinado':'Pendente de assinatura';
-      return `<tr><td>${mesLabel(a.competencia)}</td><td><b>${esc(e.nome||'—')}</b><div class="audit-meta">${esc(e.documento||'—')}</div></td>
+      return `<tr><td>${mesLabel(a.competencia)}<div class="audit-meta">Versão ${Number(a.versao||1)}${Number(a.versao||1)>1?' · revisão':''}</div></td><td><b>${esc(e.nome||'—')}</b><div class="audit-meta">${esc(e.documento||'—')}</div></td>
         <td>${Number(r.produtos||0)} produto(s) · ${Number(r.lotes||0)} lote(s) · ${Number(r.producoes||0)} produção(ões)<div class="audit-meta">${Number(r.percentual_preenchido||0)}% dos campos informados</div></td>
         <td><span class="pill ${a.status}">${status}</span><div class="audit-meta">${a.status==='assinado'?fmtDataHora(a.assinado_em):'Gerado em '+fmtDataHora(a.gerado_em)}</div></td>
         <td><div class="row-act"><button class="btn-sec btn-sm" onclick="baixarPdfAuditoria('${a.id}',true)">Abrir PDF</button>
@@ -611,7 +619,7 @@ function mostrarAssinaturaAuditoria(a){
   const bg=document.createElement('div');bg.className='modal-bg';bg.id='audit-modal';
   bg.innerHTML=`<div class="modal" style="max-width:560px;text-align:left" onclick="event.stopPropagation()">
     <h2 style="color:var(--butter);font-size:21px;margin-bottom:4px">${esc(e.nome||'Auditoria mensal')}</h2>
-    <div style="color:var(--txt-dim);font-size:13px">Competência ${mesLabel(a.competencia)} · ${esc(e.documento||'')}</div>
+    <div style="color:var(--txt-dim);font-size:13px">Competência ${mesLabel(a.competencia)} · versão ${Number(a.versao||1)}${Number(a.versao||1)>1?' (revisão)':''} · ${esc(e.documento||'')}</div>
     <div class="audit-resumo">
       <div class="stat"><div class="n">${Number(r.produtos||0)}</div><div class="l">Produtos</div></div>
       <div class="stat"><div class="n">${Number(r.lotes||0)}</div><div class="l">Lotes</div></div>
@@ -647,7 +655,7 @@ async function baixarPdfAuditoria(id,abrir){
   if(!window.jspdf||!window.jspdf.jsPDF){if(aba)aba.close();toast('O gerador de PDF não carregou. Atualize a página.');return;}
   const doc=montarPdfAuditoria(data);
   const nome=((data.dados||{}).estabelecimento||{}).nome||'estabelecimento';
-  const arquivo=`Auditoria-${nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-')}-${String(data.competencia).slice(0,7)}.pdf`;
+  const arquivo=`Auditoria-${nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-')}-${String(data.competencia).slice(0,7)}-v${Number(data.versao||1)}.pdf`;
   if(abrir&&aba){aba.location.href=doc.output('bloburl');}else{doc.save(arquivo);}
 }
 
@@ -655,14 +663,15 @@ function montarPdfAuditoria(a){
   const {jsPDF}=window.jspdf,doc=new jsPDF({unit:'mm',format:'a4',orientation:'portrait'});
   const d=a.dados||{},e=d.estabelecimento||{},r=a.resumo||{};
   const dourado=[190,126,38],marrom=[38,26,16],bege=[247,241,229],cinza=[92,82,70];
-  doc.setProperties({title:`Auditoria mensal - ${e.nome||'Estabelecimento'}`,subject:`Competência ${mesLabel(a.competencia)}`,author:'Órigo Laticínios'});
+  doc.setProperties({title:`Auditoria mensal - ${e.nome||'Estabelecimento'} - versão ${Number(a.versao||1)}`,subject:`Competência ${mesLabel(a.competencia)} - versão ${Number(a.versao||1)}`,author:'Órigo Laticínios'});
   doc.setFillColor(...marrom);doc.rect(0,0,210,38,'F');
   doc.setTextColor(...dourado);doc.setFont('helvetica','bold');doc.setFontSize(17);doc.text(String(e.nome||'ESTABELECIMENTO'),14,15,{maxWidth:142});
   doc.setTextColor(255,255,255);doc.setFontSize(10);doc.text('RELATÓRIO MENSAL DE AUDITORIA',14,23);
   doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.text(`Documento: ${e.documento||'-'}  |  Cidade: ${e.cidade||'-'}  |  SIM/POA: ${e.sim_poa||'-'}`,14,30,{maxWidth:180});
   if(e.email){doc.setFontSize(7.5);doc.text(`E-mail: ${e.email}`,14,35,{maxWidth:180});}
   doc.setFont('helvetica','bold');doc.setTextColor(a.status==='assinado'?85:190,a.status==='assinado'?130:126,a.status==='assinado'?65:38);doc.text(a.status==='assinado'?'ASSINADO':'PENDENTE DE ASSINATURA',196,15,{align:'right'});
-  doc.setTextColor(...cinza);doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(`Período auditado: ${fmtData(a.periodo_inicio)} a ${fmtData(a.periodo_fim)}`,14,46);
+  doc.setFontSize(7.5);doc.text(`VERSÃO ${Number(a.versao||1)}${Number(a.versao||1)>1?' - REVISÃO':''}`,196,21,{align:'right'});
+  doc.setTextColor(...cinza);doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text(`Período auditado: ${fmtData(a.periodo_inicio)} a ${fmtData(a.periodo_fim)}  |  Versão ${Number(a.versao||1)}`,14,46);
   doc.text(`Documento gerado por ${a.gerado_por_nome||'-'} em ${fmtDataHora(a.gerado_em)}`,14,52);
   doc.autoTable({startY:58,theme:'grid',head:[['Produtos','Lotes','Produções','Leite recebido','Leite consumido','Campos informados']],body:[[
     String(r.produtos||0),String(r.lotes||0),String(r.producoes||0),`${Number(r.volume_recebido_litros||0).toFixed(1)} L`,`${Number(r.litros_consumidos||0).toFixed(1)} L`,`${Number(r.percentual_preenchido||0)}%`
@@ -670,9 +679,10 @@ function montarPdfAuditoria(a){
 
   let y=doc.lastAutoTable.finalY+8;
   doc.setTextColor(...marrom);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text('PRODUTOS CADASTRADOS',14,y);
-  doc.autoTable({startY:y+3,theme:'striped',head:[['Produto','Tipo de leite exigido','Dias de cura','Ativo','Preenchimento']],body:(d.produtos||[]).length?(d.produtos||[]).map(p=>[
-    p.produto||'-',tipoLeiteLabel(p.tipo_leite_exigido),String(p.dias_cura??'-'),simNao(p.ativo),`${p.preenchimento?.percentual??0}%`
-  ]):[['Nenhum produto cadastrado','-','-','-','-']],styles:{fontSize:8,cellPadding:2},headStyles:{fillColor:marrom,textColor:bege}});
+  doc.autoTable({startY:y+3,theme:'striped',head:[['Produto','Nº registro do produto','Nº Selo Arte','Leite exigido','Cura','Ativo','Preench.']],body:(d.produtos||[]).length?(d.produtos||[]).map(p=>{
+    const preench=pctPreenchido([p.produto,p.numero_registro_produto,p.numero_selo_arte,p.tipo_leite_exigido,p.dias_cura]);
+    return [p.produto||'-',p.numero_registro_produto||'Não informado',p.numero_selo_arte||'Não informado',tipoLeiteLabel(p.tipo_leite_exigido),`${p.dias_cura??'-'} dias`,simNao(p.ativo),`${preench.percentual}%`];
+  }):[['Nenhum produto cadastrado','-','-','-','-','-','-']],tableWidth:172,styles:{fontSize:7,cellPadding:1.8,valign:'middle'},headStyles:{fillColor:marrom,textColor:bege},columnStyles:{0:{cellWidth:36},1:{cellWidth:31},2:{cellWidth:25},3:{cellWidth:30},4:{cellWidth:16},5:{cellWidth:14},6:{cellWidth:20}}});
 
   y=doc.lastAutoTable.finalY+8;doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text('LOTES DE LEITE REGISTRADOS NO MÊS',14,y);
   doc.autoTable({startY:y+3,theme:'grid',head:[['Código / data','Espécie e raça','Leite / volume','Coleta e processo','Situação','Preench.']],body:(d.lotes||[]).length?(d.lotes||[]).map(l=>[
@@ -763,21 +773,51 @@ async function listarLotes(){
 async function salvarFicha(){
   const nome=document.getElementById('fi-nome').value.trim();
   if(!nome){toast('Informe o nome do produto.');return;}
-  const {error}=await sb.from('lat_ficha_tecnica').insert({
-    estabelecimento_id:ME.estabelecimento_id, produto:nome,
+  const payload={
+    estabelecimento_id:ME.estabelecimento_id,produto:nome,
+    numero_registro_produto:document.getElementById('fi-registro').value.trim()||null,
+    numero_selo_arte:document.getElementById('fi-selo').value.trim()||null,
     tipo_leite_exigido:document.getElementById('fi-tipo').value,
     dias_cura:parseInt(document.getElementById('fi-dias').value)||0, ativo:true
-  });
+  };
+  const editando=window._fichaEditandoId;
+  const resultado=editando
+    ?await sb.from('lat_ficha_tecnica').update(payload).eq('id',editando).eq('estabelecimento_id',ME.estabelecimento_id)
+    :await sb.from('lat_ficha_tecnica').insert(payload);
+  const {error}=resultado;
   if(error){toast('Erro: '+error.message);return;}
-  toast('Ficha salva!');document.getElementById('fi-nome').value='';document.getElementById('fi-dias').value='';
+  toast(editando?'Ficha atualizada!':'Ficha salva!');limparFormularioFicha();
   listarFichas();
+}
+function limparFormularioFicha(){
+  window._fichaEditandoId=null;
+  ['fi-nome','fi-registro','fi-selo','fi-dias'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const tipo=document.getElementById('fi-tipo');if(tipo)tipo.value='cru';
+  const titulo=document.getElementById('fi-titulo');if(titulo)titulo.textContent='Nova ficha';
+  const salvar=document.getElementById('fi-salvar');if(salvar)salvar.textContent='Salvar ficha';
+  document.getElementById('fi-cancelar')?.classList.add('hidden');
+}
+function editarFicha(id){
+  const f=(window._fichasCadastradas||[]).find(x=>x.id===id);
+  if(!f){toast('Ficha não encontrada.');return;}
+  window._fichaEditandoId=id;
+  document.getElementById('fi-nome').value=f.produto||'';
+  document.getElementById('fi-registro').value=f.numero_registro_produto||'';
+  document.getElementById('fi-selo').value=f.numero_selo_arte||'';
+  document.getElementById('fi-tipo').value=f.tipo_leite_exigido||'cru';
+  document.getElementById('fi-dias').value=f.dias_cura||0;
+  document.getElementById('fi-titulo').textContent='Editar ficha técnica';
+  document.getElementById('fi-salvar').textContent='Atualizar ficha';
+  document.getElementById('fi-cancelar').classList.remove('hidden');
+  document.getElementById('fi-nome').scrollIntoView({behavior:'smooth',block:'center'});
 }
 async function listarFichas(){
   const {data}=await sb.from('lat_ficha_tecnica').select('*').eq('estabelecimento_id',ME.estabelecimento_id).order('criado_em',{ascending:false});
   const el=document.getElementById('fi-lista');if(!el)return;
-  if(!data||!data.length){el.innerHTML='<div class="empty">Nenhuma ficha ainda.</div>';return;}
-  el.innerHTML=`<table><thead><tr><th>Produto</th><th>Leite</th><th>Cura</th></tr></thead><tbody>`+
-    data.map(f=>`<tr><td>${esc(f.produto)}</td><td style="text-transform:capitalize">${esc(f.tipo_leite_exigido)}</td><td>${f.dias_cura||0} dias</td></tr>`).join('')+`</tbody></table>`;
+  if(!data||!data.length){window._fichasCadastradas=[];el.innerHTML='<div class="empty">Nenhuma ficha ainda.</div>';return;}
+  window._fichasCadastradas=data;
+  el.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Produto</th><th>Registro do produto</th><th>Selo Arte</th><th>Leite</th><th>Cura</th><th>Ações</th></tr></thead><tbody>`+
+    data.map(f=>`<tr><td>${esc(f.produto)}</td><td class="mono">${esc(f.numero_registro_produto||'—')}</td><td class="mono">${esc(f.numero_selo_arte||'—')}</td><td style="text-transform:capitalize">${esc(f.tipo_leite_exigido)}</td><td>${f.dias_cura||0} dias</td><td><button class="btn-sec btn-sm" onclick="editarFicha('${f.id}')">Editar</button></td></tr>`).join('')+`</tbody></table></div>`;
 }
 
 function montarLotesProd(){
